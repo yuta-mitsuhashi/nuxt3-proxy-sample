@@ -1,42 +1,61 @@
-# Nuxt 3 Minimal Starter
+# Nuxt 3 Proxy Sample
 
-Look at the [Nuxt 3 documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+## 起動
 
-## Setup
+- Dockerビルド＆起動
 
-Make sure to install the dependencies:
-
-```bash
-# yarn
-yarn install
-
-# npm
-npm install
-
-# pnpm
-pnpm install
+```
+docker build . -t nuxt3-proxy-sample && docker run --rm -p 8080:3000 nuxt3-proxy-sample
 ```
 
-## Development Server
+- 画面表示 (テストの為、ポート番号を変更)
 
-Start the development server on `http://localhost:3000`
-
-```bash
-npm run dev
+```
+http://localhost:8080/
 ```
 
-## Production
+## Proxy設定
 
-Build the application for production:
+- `http-proxy-middleware` で Proxy を行う方針。
+- fromNodeMiddleware で取得できる middleware を使って適用する。
 
-```bash
-npm run build
+```.ts
+// server/middleware/proxy.ts
+
+import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
+
+// Proxy先はRuntimeConfigで設定変更できるよう考慮
+const { proxyTarget } = useRuntimeConfig();
+
+const proxyMiddleware = createProxyMiddleware({
+  target: proxyTarget,
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: {
+    '^/api': '/',
+  },
+  pathFilter: ['/api/**'],
+  on: {
+    proxyReq: fixRequestBody,
+  },
+  logger: console,
+});
+
+export default fromNodeMiddleware((req, res, next) => {
+  proxyMiddleware(req, res, next);
+});
 ```
 
-Locally preview production build:
+## API呼び出し
 
-```bash
-npm run preview
+- useFetch利用時、リクエスト先URLにFQDNを指定しないと、SSR時にエラーが発生する。(<a href="https://github.com/nuxt/nuxt/issues/12720">恐らく内部の不具合</a>)
+- その為、SSRでは内部ホスト `http://localhost:3000/*` に、CSR時はドメイン指定を省略 `/*` に、リクエスト先URLを変更する必要がある。
+- これを簡易にやる為、`plugins/apiDomain.ts` でリクエスト先のFQDNを取得する処理を用意している。
+
+```.vue
+// pages/ditto.vue
+<script lang="ts" setup>
+  const { $apiDomain } = useNuxtApp();
+  const { data } = await useFetch<number>(`${$apiDomain}/api/ditto`);
+</script>
 ```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.

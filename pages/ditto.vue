@@ -8,5 +8,5 @@
 
 <script lang="ts" setup>
   const { $apiDomain } = useNuxtApp();
-  const { data } = await useFetch<number>(`${$apiDomain}/api/ditto`);
+  const { data } = await useFetch(`${$apiDomain}/api/ditto`);
 </script>
